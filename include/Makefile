@@ -130,7 +130,7 @@ target_alias =
 top_build_prefix = ../
 top_builddir = ..
 top_srcdir = ..
-NCLUDES = -I/usr/include/mysql/
+INCLUDES = -I/usr/include/mysql/ -I/usr/local/include
 all: all-am
 
 .SUFFIXES:

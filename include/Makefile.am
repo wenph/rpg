@@ -1,1 +1,1 @@
-NCLUDES = -I/usr/include/mysql/
+INCLUDES = -I/usr/include/mysql/ -I/usr/local/include

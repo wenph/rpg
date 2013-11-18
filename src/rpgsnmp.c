@@ -2,16 +2,18 @@
  * rpgsnmp.c
  *
  */
+#include <net-snmp/net-snmp-config.h>
+#include <net-snmp/net-snmp-includes.h>
+
 #include "common.h"
 #include "rpg.h"
 
-#include <net-snmp/net-snmp-config.h>
-#include <net-snmp/net-snmp-includes.h>
 
 extern target_t *Targets;
 extern target_t *current;
 extern MYSQL mysql;
 int active_hosts;			/* hosts that we have not completed */
+int select_times = 0;
 int non_repeaters = 0;
 int max_repetitions = 2;
 /*
@@ -40,20 +42,177 @@ struct my_oid
     { NULL }
 };
 
-netsnmp_pdu *create_pdu_preGetVersion()
+
+
+/*
+ * initialize
+ */
+void snmp_oid_initialize ()
 {
-    struct snmp_pdu *pdu;
-    oid id_oid[MAX_OID_LEN];
-    size_t id_len = MAX_OID_LEN;
+    struct my_oid *op = oids;
 
-    pdu = snmp_pdu_create (SNMP_MSG_GET);
-    snmp_parse_oid ("ifNumber.0", id_oid, &id_len);
-    snmp_add_null_var (pdu, id_oid, id_len);
-    snmp_parse_oid ("sysDescr.0", id_oid, &id_len);
-    snmp_add_null_var (pdu, id_oid, id_len);
+    // initialize library
+    init_snmp("asynchapp");
 
-    return pdu;
+    // parse the oids
+    while (op->Name)
+    {
+        op->OidLen = sizeof(op->Oid)/sizeof(op->Oid[0]);
+        if (!snmp_parse_oid(op->Name, op->Oid, &op->OidLen))
+        {
+            snmp_perror("read_objid");
+            exit(1);
+        }
+        op++;
+    }
 }
+
+/*
+ * store the returned data
+ */
+int store_result (int status, struct snmp_session *sp, struct snmp_pdu *pdu, int process_num)
+{
+    //char buf[1024];
+    char 			query[BUFSIZE]= {0};
+    char 			R_key[BUFSIZE]= {0};
+    char 			R_value[BUFSIZE]= {0};
+    char 			ipaddr[BUFSIZE]= {0};
+    unsigned long long 		result = 0;
+    struct variable_list 	*vars;
+    bson			b;
+    time_t			timep;
+
+    time(&timep);
+    strcpy(ipaddr, sp->peername);
+    //convert_dot2line(ipaddr);
+
+    switch (status)
+    {
+    case STAT_SUCCESS:
+        for (vars = pdu->variables; vars; vars = vars->next_variable)
+        {
+            int i, n;
+            R_key[0]='\0';
+
+            bson_init( &b );
+            //bson_append_new_oid( &b, "_id" );
+            bson_append_string( &b, "n", ipaddr );
+            bson_append_int( &b, "t", timep);
+
+
+            for(i=0; i < vars->name_length; i++)
+            {
+                n = sprintf(R_key,"%s%lu.",R_key,vars->name[i]);
+            }
+            R_key[n-1]='\0';
+
+            bson_append_string( &b, "k", R_key);
+
+            switch (vars->type)
+            {
+                /*
+                 * Switch over vars->type and modify/assign result accordingly.
+                 */
+            case ASN_INTEGER:	//2integer
+            case ASN_COUNTER:	//65integer
+            case ASN_GAUGE:	//66integer
+                result = (unsigned long) *(vars->val.integer);
+                snprintf(query, sizeof(query), "INSERT INTO %s(R_time, R_key, R_value) VALUES (NOW(), '%s', '%llu')",
+                         ipaddr, R_key, result);
+                bson_append_int( &b, "v", result);
+                break;
+            case ASN_OCTET_STR:	//4string
+                memcpy(R_value, vars->val.string, vars->val_len);
+                R_value[vars->val_len] = '\0';
+                //printf ("%s\n", R_value);
+                snprintf(query, sizeof(query), "INSERT INTO %s(R_time, R_key, R_value) VALUES (NOW(), '%s', '%s')",
+                         ipaddr, R_key, R_value);
+                bson_append_string( &b, "v", R_value);
+                break;		//还是直接放入入库函数?
+            case ASN_COUNTER64:	//70counter64->high&low
+                result = vars->val.counter64->high;
+                result = result << 32;
+                result = result + vars->val.counter64->low;
+                snprintf(query, sizeof(query), "INSERT INTO %s(R_time, R_key, R_value) VALUES (NOW(), '%s', '%llu')",
+                         ipaddr, R_key, result);
+                bson_append_int( &b, "v", result);
+                break;
+            default:		//err
+                result = (unsigned long) *(vars->val.integer);
+                snprintf(query, sizeof(query), "INSERT INTO %s(R_time, R_key, R_value) VALUES (NOW(), '%s', '%llu')",
+                         ipaddr, R_key, result);
+                bson_append_int( &b, "v", result);
+                break;
+            }
+            //mysql_query(&mysql, query);
+            //printf("%s\n", query);
+            bson_finish( &b );
+            //printf("**********************\n");
+            if(set.n_forks == 1)
+            {
+                if( mongo_insert( &(set.conn), "rpg_snmp.netlog", &b, NULL ) != MONGO_OK )
+                {
+                    printf( "FAIL: Failed to insert document with error %d %s\n", set.conn.err, set.conn.lasterrstr);
+                    exit( 1 );
+                }
+                else
+                {
+                    //printf("success insert one\n");
+                }
+            }
+            else
+            {
+                if( mongo_insert( &(cptr[process_num].conn), "rpg_snmp.netlog", &b, NULL ) != MONGO_OK )
+                {
+                    printf( "FAIL: Failed to insert document with error %d %s\n", set.conn.err, set.conn.lasterrstr);
+                    exit( 1 );
+                }
+                else
+                {
+                    //printf("success insert one\n");
+                }
+            }
+        }
+        return 1;
+    case STAT_TIMEOUT:
+        fprintf(stdout, "errlog:%s: Timeout\n", sp->peername);
+        return 1;
+    case STAT_ERROR:
+        snmp_perror(sp->peername);
+        return 1;
+    }
+    bson_destroy( &b );
+    return 1;
+}
+
+
+/*
+ * response handler
+ */
+int asynch_response(int operation, struct snmp_session *sp, int reqid,
+                    struct snmp_pdu *pdu, void *magic)
+{
+    //struct snmp_pdu *req;
+    int process_num = *(int *)magic;
+    //printf("process_num:%d\n", process_num);
+    if (operation == NETSNMP_CALLBACK_OP_RECEIVED_MESSAGE)
+    {
+        store_result(STAT_SUCCESS, sp, pdu, process_num);//store it to DB
+        //print_result(STAT_SUCCESS, sp, pdu);//just print it at screen
+    }
+    else
+    {
+        store_result(STAT_TIMEOUT, sp, pdu, process_num);
+        //print_result(STAT_SUCCESS, sp, pdu);
+    }
+
+    /* something went wrong (or end of variables)
+     * this host not active any more
+     */
+    active_hosts--;
+    return 1;
+}
+
 
 netsnmp_pdu *create_bulkget_pdu(int non_Repeaters, int max_Repetitions)
 {
@@ -103,28 +262,99 @@ netsnmp_pdu *create_bulkget_pdu(int non_Repeaters, int max_Repetitions)
     return pdu;
 }
 
-/*
- * initialize
- */
-void snmp_oid_initialize ()
+int snmp_asynchronous_poll(int process_num)
 {
-    struct my_oid *op = oids;
+    target_t *hp = NULL;
+    hp = Targets;
+    if(hp == NULL)
+        printf("asyschronous err.\n");
+    printf("start of send pack,time is:");
+    print_cur_time();
 
-    // initialize library
-    init_snmp("asynchapp");
-
-    // parse the oids
-    while (op->Name)
+    for (; hp != NULL; hp = hp->next)
     {
-        op->OidLen = sizeof(op->Oid)/sizeof(op->Oid[0]);
-        if (!snmp_parse_oid(op->Name, op->Oid, &op->OidLen))
+        struct my_oid *op = oids;
+        struct snmp_session sess, *sp;
+        struct snmp_pdu *req;
+        snmp_sess_init(&sess);			/* initialize session */
+        sess.version = SNMP_VERSION_2c;
+        sess.retries = 1;
+        sess.peername = hp->host;
+        sess.community = hp->community;
+        sess.community_len = strlen(sess.community);
+        sess.callback = asynch_response;		/* default callback */
+        sess.callback_magic = (&process_num);
+        if (!(sp = snmp_open(&sess)))         //循环这个函数把session加入sess_list链表中
         {
-            snmp_perror("read_objid");
-            exit(1);
+            snmp_perror("snmp_open");
+            continue;
         }
-        op++;
+
+        req = create_bulkget_pdu(non_repeaters, max_repetitions);
+        if (snmp_send(sp, req))
+            active_hosts++;
+        else
+        {
+            snmp_perror("snmp_send");
+            snmp_free_pdu(req);
+        }
     }
+
+    printf("end of send pack, time is:");
+    print_cur_time();
+    /* loop while any active hosts */
+    printf("start of recv pack, time is:");
+    print_cur_time();
+    printf("the active_hosts is:%d\n", active_hosts);
+    while (active_hosts)
+    {
+        int fds = 0, block = 1;
+        fd_set fdset;
+        struct timeval timeout;
+
+        FD_ZERO(&fdset);
+        snmp_select_info(&fds, &fdset, &timeout, &block);//for循环sess_list把sockfd加入fdset中
+	printf("this time the active_hosts is :***************%d\n", active_hosts);
+	printf("this time the select_times is :***************%d\n", select_times++);
+        fds = select(fds, &fdset, NULL, NULL, block ? NULL : &timeout);
+        if (fds < 0)
+        {
+            perror("select failed");
+            return -1;
+        }
+        //printf("the fds is :%d\n", fds);
+        if (fds)
+            snmp_read(&fdset);//for循环sess_list用FD_ISSET检查该sockfd是否在fdset集合中。是就读取包，不是继续扫描。
+        else
+            snmp_timeout();
+    }
+
+    /* cleanup */
+    if(snmp_close_sessions() == 1)
+    {
+        printf("delete all the session sucess\n");
+    }
+    printf("end of recv pack, time is:");
+    print_cur_time();
+    return 0;
 }
+
+// useless@rpgsnmp.c
+netsnmp_pdu *create_pdu_preGetVersion()
+{
+    struct snmp_pdu *pdu;
+    oid id_oid[MAX_OID_LEN];
+    size_t id_len = MAX_OID_LEN;
+
+    pdu = snmp_pdu_create (SNMP_MSG_GET);
+    snmp_parse_oid ("ifNumber.0", id_oid, &id_len);
+    snmp_add_null_var (pdu, id_oid, id_len);
+    snmp_parse_oid ("sysDescr.0", id_oid, &id_len);
+    snmp_add_null_var (pdu, id_oid, id_len);
+
+    return pdu;
+}
+
 
 /*
  * simple printing of returned data
@@ -168,110 +398,6 @@ int print_result (int status, struct snmp_session *sp, struct snmp_pdu *pdu)
     return 1;
 }
 
-/*
- * store the returned data
- */
-int store_result (int status, struct snmp_session *sp, struct snmp_pdu *pdu)
-{
-    //char buf[1024];
-    char query[BUFSIZE]= {0};
-    char R_key[BUFSIZE]= {0};
-    char R_value[BUFSIZE]= {0};
-    char ipaddr[BUFSIZE]= {0};
-    unsigned long long result = 0;
-    struct variable_list *vars;
-    //int ix;
-    strcpy(ipaddr, sp->peername);
-    printf("%s\n",ipaddr);
-
-    switch (status)
-    {
-    case STAT_SUCCESS:
-        for (vars = pdu->variables; vars; vars = vars->next_variable)
-        {
-            int n;
-            int i;
-            R_key[0]='\0';
-            for(i=0; i < vars->name_length; i++)
-            {
-                n = sprintf(R_key,"%s%lu_",R_key,vars->name[i]);
-            }
-            R_key[n-1]='\0';
-            printf("%s\n",R_key);
-
-            switch (vars->type)
-            {
-                /*
-                 * Switch over vars->type and modify/assign result accordingly.
-                 */
-            case ASN_INTEGER:	//2integer
-            case ASN_COUNTER:	//65integer
-            case ASN_GAUGE:	//66integer
-                result = (unsigned long) *(vars->val.integer);
-                printf ("%llu\n", result);
-                /*
-                snprintf(query, sizeof(query), "INSERT INTO %s(R_time, R_key, R_value) VALUES (NOW(), %s, %llu)",
-                         , R_key, result);
-                status = mysql_query(&mysql, query);
-                if (status)
-                    printf("*** MySQL Error: %s\n", mysql_error(&mysql));
-                */
-                break;
-            case ASN_OCTET_STR:	//4string
-                memcpy(R_value, vars->val.string, vars->val_len);
-                R_value[vars->val_len] = '\0';
-                printf ("%s\n", R_value);
-
-                //memcpy(buf_name, vars->name, (sizeof(oid)*(vars->name_length)));
-
-                break;		//还是直接放入入库函数?
-            case ASN_COUNTER64:	//70counter64->high&low
-                result = vars->val.counter64->high;
-                result = result << 32;
-                result = result + vars->val.counter64->low;
-                printf ("%llu\n", result);
-                break;
-            default:		//err
-                result = (unsigned long) *(vars->val.integer);
-                printf ("%llu\n", result);
-                break;
-            }
-        }
-        /*
-            vp = pdu->variables;
-            if (pdu->errstat == SNMP_ERR_NOERROR)
-            {
-                while (vp)
-                {
-                    snprint_variable(buf, sizeof(buf), vp->name, vp->name_length, vp);
-                    fprintf(stdout, "%s: %s\n", sp->peername, buf);
-                    vp = vp->next_variable;
-                }
-            }
-            else
-            {
-                for (ix = 1; vp && ix != pdu->errindex; vp = vp->next_variable, ix++)
-                    ;
-                if (vp) snprint_objid(buf, sizeof(buf), vp->name, vp->name_length);
-                else
-                    strcpy(buf, "(none)");
-                fprintf(stdout, "%s: %s: %s\n", sp->peername, buf, snmp_errstring(pdu->errstat));
-            }
-        */
-        return 1;
-    case STAT_TIMEOUT:
-        fprintf(stdout, "%s: Timeout\n", sp->peername);
-        return 1;
-    case STAT_ERROR:
-        snmp_perror(sp->peername);
-        return 1;
-    }
-    //snprintf(query, sizeof(query), "INSERT INTO %s VALUES (%d, NOW(), %llu)", entry->table, entry->iid, insert_val);
-    //status = mysql_query(&mysql, query);
-    //if (status)
-    //printf("*** MySQL Error: %s\n", mysql_error(&mysql));
-    return 1;
-}
 
 /*
  * simple synchronous loop
@@ -322,26 +448,6 @@ void *snmp_synchronous (void *arg)
     }
 }
 
-/*
- * response handler
- */
-int asynch_response(int operation, struct snmp_session *sp, int reqid,
-                    struct snmp_pdu *pdu, void *magic)
-{
-    //struct snmp_pdu *req;
-
-    if (operation == NETSNMP_CALLBACK_OP_RECEIVED_MESSAGE)
-        store_result(STAT_SUCCESS, /*host->sess*/sp, pdu);
-    else
-        store_result(STAT_TIMEOUT, /*host->sess*/sp, pdu);
-
-    /* something went wrong (or end of variables)
-     * this host not active any more
-     */
-    active_hosts--;
-    return 1;
-}
-
 void *snmp_asynchronous(void *arg)
 {
     //sleep(10);
@@ -366,6 +472,7 @@ void *snmp_asynchronous(void *arg)
         struct snmp_pdu *req;
         snmp_sess_init(&sess);			/* initialize session */
         sess.version = SNMP_VERSION_2c;
+        sess.retries = 1;
         sess.peername = hp->host;
         sess.community = hp->community;
         sess.community_len = strlen(sess.community);
@@ -417,7 +524,7 @@ void *snmp_asynchronous(void *arg)
     /* cleanup */
     if(snmp_close_sessions() == 1)
     {
-        printf("delete the session sucess\n");
+        printf("delete all the session sucess\n");
     }
     printf("end of recv pack:");
     print_cur_time();
@@ -501,3 +608,4 @@ void *poller(void *thread_args)
         }
     }				/* while(1) */
 }
+

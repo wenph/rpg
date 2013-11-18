@@ -25,11 +25,12 @@ int add_hash_entry(target_t *new)
 
 int del_all_hash_entry(void)
 {
+    int count = 0;
     target_t *p = NULL;
     if(Targets == NULL)
     {
         printf("There are no Targets to delete\n");
-        return -1;
+        return 0;
     }
     else
     {
@@ -38,20 +39,23 @@ int del_all_hash_entry(void)
             p = Targets;
             Targets = Targets->next;
             free(p);
+            count++;
         }
     }
-    return 0;
+    return count;
 }
 
 int print_all_hash_entry(void)
 {
+    int count;
     target_t *p = Targets;
     while(p != NULL)
     {
         printf("host = %s,community = %s\n",p->host,p->community);
         p = p->next;
+        count++;
     }
-    return 0;
+    return count;
 }
 
 /* Read a target file into a target_t hash table.  Our hash algorithm
@@ -81,7 +85,8 @@ void *hash_target_file(void *arg)
 
     while (count && !feof(fp))
     {
-        fgets(buffer, BUFSIZE, fp);
+        if(fgets(buffer, BUFSIZE, fp) ==0)
+            continue;
         if (!feof(fp) && buffer[0] != '#' && buffer[0] != ' ' && buffer[0] != '\n')
         {
             new = (target_t *) malloc(sizeof(target_t));
@@ -132,7 +137,8 @@ void *hash_target_file2(void *arg)
 
     while (count && !feof(fp))
     {
-        fgets(buffer, BUFSIZE, fp);
+        if(fgets(buffer, BUFSIZE, fp) ==0)
+            continue;
         if (!feof(fp) && buffer[0] != '#' && buffer[0] != ' ' && buffer[0] != '\n')
         {
             new = (target_t *) malloc(sizeof(target_t));
@@ -162,3 +168,57 @@ void *hash_target_file2(void *arg)
     PT_COND_BROAD(&(crew->go));
 
 }
+
+int make_target_list(config_t *set, long offset)
+{
+
+    //target_session_t *target_session = (target_session_t *)arg;
+    //char *file = "config.txt";
+    FILE *fp;
+    target_t *new = NULL;
+    char buffer[BUFSIZE];
+    int entries = 0;
+    int count = set->ip_count_interval;
+
+    printf("start hash the pack, time is:");
+    print_cur_time();
+    // Open the target file
+    if ((fp = fopen(set->ipaddr_file, "r")) == NULL)
+    {
+        fprintf(stderr, "Could not open file for reading '%s'.\n", set->ipaddr_file);
+        exit (1);
+    }
+    fseek(fp,offset,SEEK_SET);
+
+    while (count && !feof(fp))
+    {
+        if(fgets(buffer, BUFSIZE, fp) ==0)
+            continue;
+        if (!feof(fp) && buffer[0] != '#' && buffer[0] != ' ' && buffer[0] != '\n')
+        {
+
+            new = (target_t *) malloc(sizeof(target_t));
+            if (!new)
+            {
+                printf("Fatal target malloc error!\n");
+                exit(-1);
+            }
+            sscanf(buffer, "%64s", new->host);
+            strcpy(new->community, "public");
+            new->next = NULL;
+            entries += add_hash_entry(new);
+
+            //printf("pid %ld: %s", (long)getpid(), buffer);
+            count--;
+            //entries++;
+        }
+
+    }
+    fclose(fp);
+    printf("Successfully read [%d] new targets\n", entries);
+
+    printf("end hash the pack, time is:");
+    print_cur_time();
+    return entries;
+}
+

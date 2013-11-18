@@ -68,7 +68,7 @@ AUTOCONF = ${SHELL} /home/apple/workplace/rpg/missing --run autoconf
 AUTOHEADER = ${SHELL} /home/apple/workplace/rpg/missing --run autoheader
 AUTOMAKE = ${SHELL} /home/apple/workplace/rpg/missing --run automake-1.11
 AWK = mawk
-CC = gcc
+CC = gcc -std=c99
 CCDEPMODE = depmode=gcc3
 CFLAGS = -g -O2
 CPP = gcc -E
@@ -89,7 +89,7 @@ INSTALL_SCRIPT = ${INSTALL}
 INSTALL_STRIP_PROGRAM = $(install_sh) -c -s
 LDFLAGS = 
 LIBOBJS = 
-LIBS = -L/usr/local/net-snmp/lib/
+LIBS = -L/usr/local/net-snmp/lib/ -L/usr/local/lib
 LTLIBOBJS = 
 MAKEINFO = ${SHELL} /home/apple/workplace/rpg/missing --run makeinfo
 MKDIR_P = /bin/mkdir -p
@@ -148,9 +148,9 @@ target_alias =
 top_build_prefix = ../
 top_builddir = ..
 top_srcdir = ..
-INCLUDES = -I/usr/include/mysql/ -I ../include -I/usr/local/net-snmp/include/
+INCLUDES = -I/usr/include/mysql/ -I ../include -I/usr/local/net-snmp/include/ -I/usr/local/include
 my_rpgpoll_SOURCES = my_rpgpoll.c rpgsnmp.c rpghash.c rpgutil.c rpgmysql.c
-my_rpgpoll_LDADD = -lmysqlclient -lpthread -lnetsnmp
+my_rpgpoll_LDADD = -lmysqlclient -lpthread -lnetsnmp -lmongoc
 all: all-am
 
 .SUFFIXES:

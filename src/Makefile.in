@@ -89,7 +89,7 @@ INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 LDFLAGS = @LDFLAGS@
 LIBOBJS = @LIBOBJS@
-LIBS = -L/usr/local/net-snmp/lib/
+LIBS = -L/usr/local/net-snmp/lib/ -L/usr/local/lib
 LTLIBOBJS = @LTLIBOBJS@
 MAKEINFO = @MAKEINFO@
 MKDIR_P = @MKDIR_P@
@@ -148,9 +148,9 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-INCLUDES = -I/usr/include/mysql/ -I ../include -I/usr/local/net-snmp/include/
+INCLUDES = -I/usr/include/mysql/ -I ../include -I/usr/local/net-snmp/include/ -I/usr/local/include
 my_rpgpoll_SOURCES = my_rpgpoll.c rpgsnmp.c rpghash.c rpgutil.c rpgmysql.c
-my_rpgpoll_LDADD = -lmysqlclient -lpthread -lnetsnmp
+my_rpgpoll_LDADD = -lmysqlclient -lpthread -lnetsnmp -lmongoc
 all: all-am
 
 .SUFFIXES:

@@ -4,7 +4,6 @@
    Date:        $Date: 2013/04/25 $
    Description: RPG headers
 ****************************************************************************/
-
 #ifndef FALSE
 # define FALSE 0
 #endif
@@ -16,11 +15,9 @@
 #define MAX_THREADS 10
 #define BUFSIZE 512
 
-/* Defaults */
-#define DEFAULT_DB_HOST "127.0.0.1"
-#define DEFAULT_DB_DB "rpg"
-#define DEFAULT_DB_USER "root"
-#define DEFAULT_DB_PASS "123"
+/* TODO can put these into the config file*/
+#define DEFAULT_CONFIG_FILE "/home/apple/workplace/rpg/src/rpgd.conf"
+#define DEFAULT_IPADDR_FILE "/home/apple/workplace/rpg/src/ipaddr.conf"
 
 /* pthread error messages */
 #define PML_ERR "pthread_mutex_lock error\n"
@@ -36,6 +33,7 @@
 #define PT_COND_BROAD(x) if (pthread_cond_broadcast(x) != 0) printf(PCB_ERR);
 #define PT_COND_SIGNAL(x) if (pthread_cond_signal(x) != 0) printf(PCS_ERR);
 
+#define max(a,b) ((a) > (b) ? (a) : (b))
 /* Verbosity levels LOW=info HIGH=info+SQL DEBUG=info+SQL+junk */
 enum debugLevel {OFF, LOW, HIGH, DEBUG, DEVELOP};
 
@@ -51,6 +49,7 @@ typedef struct target_struct
     struct target_struct *next;
 } target_t;
 
+//TODO there is no thread, these is needed?
 typedef struct target_session_struct
 {
     char *file;
@@ -67,14 +66,20 @@ typedef struct worker_struct
     struct crew_struct *crew;
 } worker_t;
 
+//全局变量，在程序运行时不允许改变里面的值
 typedef struct config_struct {
 //    unsigned int interval;
 //    unsigned long long out_of_range;
+    char config_file[BUFSIZE];
+    char ipaddr_file[BUFSIZE];
+    int n_forks;
     char dbhost[80];
     char dbdb[80];
     char dbuser[80];
     char dbpass[80];
     enum debugLevel verbose;
+    int ip_count_interval;
+    mongo conn;
 //    unsigned short withzeros;
     unsigned short dboff;
 //    unsigned short multiple;
@@ -94,6 +99,22 @@ typedef struct crew_struct
     pthread_cond_t go;
 } crew_t;
 
+typedef struct
+{
+    pid_t		child_pid;		/* process ID */
+    int		child_pipefd;	/* parent's stream pipe to/from child */
+    int		child_status;	/* 0 = ready */
+    long		child_count;	/* # connections handled */
+    mongo conn;
+} child_struct;
+
+typedef struct filestruct
+{
+    long offset;//文件当前的offset
+    int iseof;//文件末尾的标志 0:not end, 1:end of the file
+} filestruct;
+
+
 /*Precasts: rtgsnmp.c*/
 //void initialize (void);
 void snmp_oid_initialize();
@@ -101,10 +122,13 @@ void snmp_oid_initialize();
 //int asynch_response_snmpv1(int , void *, int ,void *, void *);
 void *snmp_asynchronous(void *);
 void *snmp_synchronous(void *);
+int make_target_list(config_t *set, long);
+int snmp_asynchronous_poll(int);
 
 
 /* Precasts: rtgpoll.c */
 void *poller(void *);
+pid_t child_make(int);
 
 /* Precasts: rtgmysql.c */
 //int db_insert(char *, MYSQL *);
@@ -115,6 +139,13 @@ void *poller(void *);
 //int read_rtg_config(char *, config_t *);
 //int write_rtg_config(char *, config_t *);
 void print_cur_time();
+void convert_dot2line(char *);
+long fetchNextOffset(config_t *set, filestruct *fsp);
+void config_defaults(config_t * set);
+void copy_config_file_arg(config_t *set, char *optarg);
+void copy_ipaddr_file_arg(config_t *set, char *optarg);
+void usage(char *prog);
+int config_file(config_t *set);
 
 /* Precasts: rtghash.c */
 //void init_hash();
@@ -136,6 +167,7 @@ void *hash_target_file2(void *arg);
 
 /* Globals */
 config_t set;
+child_struct	*cptr;		/* array of Child structures; calloc'ed */
 //int lock;
 //int waiting;
 //char config_paths[CONFIG_PATHS][BUFSIZE];
