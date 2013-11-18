@@ -67,6 +67,14 @@ void snmp_oid_initialize ()
     }
 }
 
+/*test if the snmpd process exist*/
+/*
+int snmp_exist()
+{
+
+}
+*/
+
 /*
  * store the returned data
  */
@@ -155,10 +163,7 @@ int store_result (int status, struct snmp_session *sp, struct snmp_pdu *pdu, int
                     printf( "FAIL: Failed to insert document with error %d %s\n", set.conn.err, set.conn.lasterrstr);
                     exit( 1 );
                 }
-                else
-                {
-                    //printf("success insert one\n");
-                }
+
             }
             else
             {
@@ -167,10 +172,7 @@ int store_result (int status, struct snmp_session *sp, struct snmp_pdu *pdu, int
                     printf( "FAIL: Failed to insert document with error %d %s\n", set.conn.err, set.conn.lasterrstr);
                     exit( 1 );
                 }
-                else
-                {
-                    //printf("success insert one\n");
-                }
+
             }
         }
         return 1;
@@ -221,7 +223,7 @@ netsnmp_pdu *create_bulkget_pdu(int non_Repeaters, int max_Repetitions)
     size_t id_len = MAX_OID_LEN;
 
     pdu = snmp_pdu_create (SNMP_MSG_GETBULK);
-    pdu->non_repeaters = non_Repeaters;
+    pdu->non_repeaters = non_Repeaters;         //non_Repeaters default is zero
     pdu->max_repetitions = max_Repetitions;     //fill the packet
     //ifTable(2)
     snmp_parse_oid ("ifIndex", id_oid, &id_len);
@@ -314,8 +316,8 @@ int snmp_asynchronous_poll(int process_num)
 
         FD_ZERO(&fdset);
         snmp_select_info(&fds, &fdset, &timeout, &block);//for循环sess_list把sockfd加入fdset中
-	printf("this time the active_hosts is :***************%d\n", active_hosts);
-	printf("this time the select_times is :***************%d\n", select_times++);
+     	//printf("this time the active_hosts is :***************%d\n", active_hosts);
+        //printf("this time the select_times is :***************%d\n", select_times++);
         fds = select(fds, &fdset, NULL, NULL, block ? NULL : &timeout);
         if (fds < 0)
         {

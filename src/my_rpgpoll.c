@@ -127,7 +127,7 @@ int main (int argc, char **argv)
             printf("delete hash entry err\n");
         print_cur_time();
     }
-    else
+    else if(set.n_forks > 1)
     {
         mongo_destroy( &(set.conn) );
         fsp = (filestruct *)malloc(sizeof(struct filestruct));
@@ -152,7 +152,7 @@ int main (int argc, char **argv)
         }
 
         //Signal(SIGINT, sig_int);
-
+        //main process to control the children process
         while(1)
         {
             rset = masterset;
@@ -237,5 +237,6 @@ int main (int argc, char **argv)
             }
         }
     }
+    else printf("n_forks setting err!\n");
     return 0;
 }
