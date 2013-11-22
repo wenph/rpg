@@ -68,9 +68,9 @@ AUTOCONF = ${SHELL} /home/apple/workplace/rpg/missing --run autoconf
 AUTOHEADER = ${SHELL} /home/apple/workplace/rpg/missing --run autoheader
 AUTOMAKE = ${SHELL} /home/apple/workplace/rpg/missing --run automake-1.11
 AWK = mawk
-CC = gcc -std=c99
+CC = gcc
 CCDEPMODE = depmode=gcc3
-CFLAGS = -g -O2
+CFLAGS = -g -O2 -std=c99
 CPP = gcc -E
 CPPFLAGS = 
 CYGPATH_W = echo
