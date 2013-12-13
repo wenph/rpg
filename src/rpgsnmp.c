@@ -177,6 +177,7 @@ int store_result (int status, struct snmp_session *sp, struct snmp_pdu *pdu, int
         }
         return 1;
     case STAT_TIMEOUT:
+	// handle the timeout ipaddr, you can deal with it as you want
         fprintf(stdout, "errlog:%s: Timeout\n", sp->peername);
         return 1;
     case STAT_ERROR:
