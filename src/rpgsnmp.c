@@ -227,13 +227,17 @@ netsnmp_pdu *create_bulkget_pdu(int non_Repeaters, int max_Repetitions)
     pdu->non_repeaters = non_Repeaters;         //non_Repeaters default is zero
     pdu->max_repetitions = max_Repetitions;     //fill the packet
     //ifTable(2)
-    snmp_parse_oid ("ifIndex", id_oid, &id_len);
+    snmp_parse_oid ("ifIndex", id_oid, &id_len);//1
     snmp_add_null_var (pdu, id_oid, id_len);
     snmp_parse_oid ("ifDescr", id_oid, &id_len);
     snmp_add_null_var (pdu, id_oid, id_len);
     snmp_parse_oid ("ifType", id_oid, &id_len);
     snmp_add_null_var (pdu, id_oid, id_len);
-    snmp_parse_oid ("ifSpeed", id_oid, &id_len);
+    snmp_parse_oid ("ifMtu", id_oid, &id_len);
+    snmp_add_null_var (pdu, id_oid, id_len);
+    snmp_parse_oid ("ifSpeed", id_oid, &id_len);//5
+    snmp_add_null_var (pdu, id_oid, id_len);
+    snmp_parse_oid ("ifAdminStatus", id_oid, &id_len);
     snmp_add_null_var (pdu, id_oid, id_len);
     snmp_parse_oid ("ifOperStatus", id_oid, &id_len);
     snmp_add_null_var (pdu, id_oid, id_len);
@@ -241,14 +245,30 @@ netsnmp_pdu *create_bulkget_pdu(int non_Repeaters, int max_Repetitions)
     snmp_add_null_var (pdu, id_oid, id_len);
     snmp_parse_oid ("ifInUcastPkts", id_oid, &id_len);
     snmp_add_null_var (pdu, id_oid, id_len);
+    snmp_parse_oid ("ifInNUcastPkts", id_oid, &id_len);//10
+    snmp_add_null_var (pdu, id_oid, id_len);
+    /*
+    snmp_parse_oid ("ifInDiscards", id_oid, &id_len);
+    snmp_add_null_var (pdu, id_oid, id_len);
     snmp_parse_oid ("ifInErrors", id_oid, &id_len);
+    snmp_add_null_var (pdu, id_oid, id_len);
+    snmp_parse_oid ("ifInUnknownProtos", id_oid, &id_len);
     snmp_add_null_var (pdu, id_oid, id_len);
     snmp_parse_oid ("ifOutOctets", id_oid, &id_len);
     snmp_add_null_var (pdu, id_oid, id_len);
-    snmp_parse_oid ("ifOutUcastPkts", id_oid, &id_len);
+    snmp_parse_oid ("ifOutUcastPkts", id_oid, &id_len);//15
+    snmp_add_null_var (pdu, id_oid, id_len);
+    snmp_parse_oid ("ifOutNUcastPkts", id_oid, &id_len);
+    snmp_add_null_var (pdu, id_oid, id_len);
+    snmp_parse_oid ("ifOutDiscards", id_oid, &id_len);
     snmp_add_null_var (pdu, id_oid, id_len);
     snmp_parse_oid ("ifOutErrors", id_oid, &id_len);
     snmp_add_null_var (pdu, id_oid, id_len);
+    snmp_parse_oid ("ifOutQLen", id_oid, &id_len);//19
+    snmp_add_null_var (pdu, id_oid, id_len);
+    */
+    //snmp_parse_oid ("ifOutErrors", id_oid, &id_len);
+    //snmp_add_null_var (pdu, id_oid, id_len);
     /*
     //ifXTable(1)
     snmp_parse_oid ("ifName", id_oid, &id_len);

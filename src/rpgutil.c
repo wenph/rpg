@@ -1,5 +1,8 @@
 #include "common.h"
 #include "rpg.h"
+#include <stdio.h>
+#include <sys/time.h>
+#include <unistd.h>
 
 extern FILE *dfp;
 
@@ -13,18 +16,21 @@ void usage(char *prog)
 
 void print_cur_time()
 {
-    /*
+    
     struct timeval now;
-    struct timezone tz;
-    struct tm *tm;
+//    struct timezone tz;
+//    struct tm *tm;
 
-    gettimeofday(&now, &tz);
-    tm = localtime(&now.tv_sec);
-    fprintf(stdout, "%.2d:%.2d:%.2d.%.6ld \n", tm->tm_hour, tm->tm_min, tm->tm_sec, now.tv_usec);
-    */
+//    gettimeofday(&now, &tz);
+    gettimeofday(&now, NULL);
+//    tm = localtime(&now.tv_sec);
+//    fprintf(stdout, "%.2d:%.2d:%.2d.%.6ld \n", tm->tm_hour, tm->tm_min, tm->tm_sec, now.tv_usec);
+    printf("%d:%d\n", now.tv_sec, now.tv_usec);
+    /*
     time_t timep;
     time(&timep);
     fprintf(stdout,"%s",asctime(gmtime(&timep)));
+    */
 }
 
 void config_defaults(config_t * set)
